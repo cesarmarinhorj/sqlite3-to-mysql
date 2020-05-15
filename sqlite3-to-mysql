@@ -1,19 +1,55 @@
-#!/usr/bin/env sh
+#!/bin/bash
 
-if test -z "$VARCHAR"
+if [ -z "$1" ]
 then
-	VARCHAR="255"
+ echo "Precisa do arquivo de input!";
+ exit;
+else
+  INPUT=$1
 fi
 
+if [ -z "$2" ]
+then
+ echo "Precisa do arquivo de output! (sem a extensão!)";
+ exit;
+else
+  OUTPUT=$2
+fi
+
+VARCHAR="255";
+
 sed \
--e '/PRAGMA.*;/ d' \
 -e '/BEGIN TRANSACTION.*/ d' \
 -e '/COMMIT;/ d' \
 -e '/.*sqlite_sequence.*;/d' \
--e "s/ varchar/ varchar($VARCHAR)/g" \
+-e "s/varchar/ varchar($VARCHAR)/g" \
+-e "s/boolean/ tinyint(1)/g" \
+-e "s/DEFAULT NULL//g" \
+-e "s/PRIMARY KEY AUTOINCREMENT//g" \
+-e "s/NOT NULL$/NOT NULL,/g" \
+-e 's/"/`/g' \
 -e 's/"/`/g' \
 -e 's/CREATE TABLE \(`\w\+`\)/DROP TABLE IF EXISTS \1;\nCREATE TABLE \1/' \
 -e 's/\(CREATE TABLE.*\)\(PRIMARY KEY\) \(AUTOINCREMENT\)\(.*\)\();\)/\1AUTO_INCREMENT\4, PRIMARY KEY(id)\5/' \
 -e "s/'t'/1/g" \
 -e "s/'f'/0/g" \
-$1
+$INPUT > $OUTPUT;
+
+# output tables
+touch $OUTPUT.tables.sql;
+echo "SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS;" >> $OUTPUT.tables.sql
+echo "SET FOREIGN_KEY_CHECKS=0;" >> $OUTPUT.tables.sql
+grep -v "INSERT" $OUTPUT >> $OUTPUT.tables.sql;
+echo "SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;" >> $OUTPUT.tables.sql;
+
+#output data
+touch $OUTPUT.data.sql;
+echo "SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS;" >> $OUTPUT.data.sql
+echo "SET FOREIGN_KEY_CHECKS=0;" >> $OUTPUT.data.sql
+grep "INSERT" $OUTPUT > $OUTPUT.data.sql;
+echo "SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;" >> $OUTPUT.data.sql;
+
+rm $OUTPUT;
+
+echo "Check if PK constraint is present in tables.sql"
+echo "PRIMARY KEY(`id`)"
